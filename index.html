@@ -175,9 +175,6 @@
     let SYNC_DATA = {}, selectedMonth = null;
     let selectedUnits = new Set();
     
-    // Linux Backend API URL (HTTPS via ngrok)
-    const API_URL = "https://superwealthy-deena-uncharacteristically.ngrok-free.dev";
-    
     async function loadSyncData() {
         try {
             const response = await fetch(API_URL + '/sync_data.json?t=' + Date.now());
