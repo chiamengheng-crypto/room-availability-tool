@@ -29,9 +29,7 @@
         .month-card:hover { border-color: #667eea; transform: translateY(-2px); }
         .month-card.selected { border-color: #667eea; background: #e0e7ff; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); }
         .month-card.synced { border-color: #38ef7d; background: #f0fff4; }
-        .month-card.synced.selected { border-color: #667eea; background: linear-gradient(135deg, #e0fff4 0%, #e0e7ff 100%); box-shadow: 0 4px 15px rgba(56, 239, 125, 0.3); }
         .month-name { font-weight: bold; color: #333; font-size: 1.1em; }
-        .month-sync { font-size: 0.85em; color: #666; margin-top: 5px; }
         .sync-badge {
             display: inline-block; padding: 3px 8px; border-radius: 12px;
             font-size: 0.75em; font-weight: bold; margin-top: 5px;
@@ -72,9 +70,7 @@
         .unit-price { color: #667eea; font-weight: bold; font-size: 1.2em; margin-top: 10px; }
         
         .quotation { background: white; border: 2px solid #667eea; border-radius: 10px; padding: 20px; margin-top: 20px; }
-        .quotation h3 { color: #667eea; margin-bottom: 15px; }
         .quote-line { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0; }
-        .quote-total { font-size: 1.5em; font-weight: bold; color: #667eea; margin-top: 15px; padding-top: 15px; border-top: 2px solid #667eea; }
         
         .loading { text-align: center; padding: 40px; color: #667eea; font-size: 1.2em; }
         
@@ -88,6 +84,15 @@
             margin-top: 10px;
         }
         
+        .api-status {
+            background: #e8f5e9;
+            border: 1px solid #4caf50;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        
         @media (max-width: 768px) { .main-grid { grid-template-columns: 1fr; } .stats { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -96,18 +101,20 @@
         <header>
             <h1>🏠 Room Availability & Quotation Tool</h1>
             <p>1 Pacific Star | Voco - Instant Availability Check</p>
-            <span class="vercel-badge">☁️ Vercel Cloud Version</span>
+            <span class="vercel-badge">☁️ Vercel + Linux Backend</span>
             <br>
             <a href="CALENDAR_VIEW.html" target="_blank" style="color: white; font-size: 0.9em; text-decoration: underline;">📅 View Calendar</a>
         </header>
         
         <div class="sync-section">
             <h2 style="color: #667eea; margin-bottom: 10px;">📊 Data Status</h2>
-            <p style="color: #666; margin-bottom: 15px;">Select a month to check availability</p>
-            <div class="sync-grid" id="monthGrid"></div>
-            <div id="syncStatus" style="margin-top:15px;padding:10px;background:#f0f4ff;border-radius:8px;color:#667eea;font-size:0.9em;">
-                📡 This is a read-only version. Sync from local server to update data.
+            <div class="api-status" id="apiStatus">
+                🔗 Connecting to Linux backend...
             </div>
+            <p style="color: #666; margin-bottom: 15px;">Select a month and click Sync to fetch latest data</p>
+            <div class="sync-grid" id="monthGrid"></div>
+            <button class="btn btn-primary" id="syncBtn" onclick="syncSelectedMonth()" style="margin-top:15px;">🔄 Sync Selected Month</button>
+            <div id="syncStatus" style="margin-top:15px;padding:10px;border-radius:8px;display:none;"></div>
         </div>
         
         <div class="stats">
@@ -119,9 +126,6 @@
         <div class="main-grid">
             <div class="card">
                 <h2>📅 Select Dates</h2>
-                <div class="date-info" style="background:#f0f4ff;padding:10px;border-radius:8px;margin-bottom:15px;font-size:0.9em;color:#667eea;">
-                    📅 Select dates to check availability
-                </div>
                 <div class="date-inputs">
                     <div class="date-group"><label>Check-in Date</label><input type="date" id="checkIn"></div>
                     <div class="date-group"><label>Check-out Date</label><input type="date" id="checkOut"></div>
@@ -139,6 +143,9 @@
     </div>
     
     <script>
+    // Linux Backend API URL (HTTPS via ngrok)
+    const API_URL = "https://superwealthy-deena-uncharacteristically.ngrok-free.dev";
+    
     const ROOM_INFO = {
         "B-6-10": {type: "2 Pax Premium Studio", weekday: 139, weekend: 179, cleaning: 60, pax: 2},
         "B-10-2": {type: "4 Pax Corner", weekday: 189, weekend: 239, cleaning: 60, pax: 4},
@@ -168,18 +175,21 @@
     let SYNC_DATA = {}, selectedMonth = null;
     let selectedUnits = new Set();
     
-    // Linux Backend API URL
-    const API_URL = "http://34.82.120.96:8080";
+    // Linux Backend API URL (HTTPS via ngrok)
+    const API_URL = "https://superwealthy-deena-uncharacteristically.ngrok-free.dev";
     
     async function loadSyncData() {
         try {
             const response = await fetch(API_URL + '/sync_data.json?t=' + Date.now());
             SYNC_DATA = await response.json();
-            console.log('✅ Loaded from Linux server:', SYNC_DATA.months);
+            console.log('✅ Loaded:', SYNC_DATA.months);
+            document.getElementById('apiStatus').innerHTML = '✅ Connected to Linux backend: ' + API_URL;
             return true;
-        } catch { 
-            SYNC_DATA = {months: {}}; 
-            return false; 
+        } catch (e) {
+            console.error('❌ Error:', e);
+            SYNC_DATA = {months: {}};
+            document.getElementById('apiStatus').innerHTML = '❌ Cannot connect to Linux backend: ' + API_URL;
+            return false;
         }
     }
     
@@ -202,76 +212,62 @@
             const key = m.y + '-' + String(m.m).padStart(2,'0');
             const d = SYNC_DATA.months[key];
             const synced = d && d.synced;
-            return `<div class="month-card ${synced?'synced':''}" data-key="${key}">
+            return `<div class="month-card ${synced?'synced':''}" onclick="selectMonth('${key}',this)">
                 <div class="month-name">${m.n}</div>
-                <div class="month-sync">
-                    <span class="sync-badge ${synced?'synced':'not-synced'}">${synced?'✅ Synced':'❌ Not synced'}</span>
-                </div>
-                <button class="btn btn-primary" style="width:auto;padding:5px 10px;font-size:0.8em;margin-top:8px;" onclick="syncMonth('${key}', event)">🔄 Sync</button>
+                <span class="sync-badge ${synced?'synced':'not-synced'}">${synced?'✅ Synced':'❌ Not synced'}</span>
             </div>`;
         }).join('');
         
         const first = Object.keys(SYNC_DATA.months).find(k => SYNC_DATA.months[k]?.synced);
         if(first) {
-            const card = grid.querySelector('[data-key="'+first+'"]');
-            if(card) {
-                card.classList.add('selected');
-                selectedMonth = first;
-            }
+            const card = grid.querySelector('[onclick*="'+first+'"]');
+            if(card) selectMonth(first, card);
         }
-    }
-    
-    async function syncMonth(monthKey, event) {
-        if(event) event.stopPropagation();
-        const btn = event.target;
-        btn.disabled = true;
-        btn.textContent = '⏳ Syncing...';
-        
-        try {
-            const response = await fetch(API_URL + '/api/sync', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({month: monthKey})
-            });
-            const result = await response.json();
-            
-            if(result.success) {
-                btn.textContent = '✅ Synced';
-                alert('✅ ' + result.message);
-                await loadSyncData();
-                initMonthGrid();
-            } else {
-                btn.textContent = '🔄 Sync';
-                alert('❌ ' + result.error);
-            }
-        } catch(e) {
-            btn.textContent = '🔄 Sync';
-            alert('❌ Error: ' + e.message);
-        }
-        btn.disabled = false;
     }
     
     function selectMonth(key, el) {
         document.querySelectorAll('.month-card').forEach(c => c.classList.remove('selected'));
         el.classList.add('selected');
         selectedMonth = key;
+    }
+    
+    async function syncSelectedMonth() {
+        if(!selectedMonth){alert('Please select a month first');return;}
+        const btn = document.getElementById('syncBtn');
+        btn.disabled = true; btn.textContent = '⏳ Syncing...';
         
-        const syncedMonths = Object.keys(SYNC_DATA.months).filter(k => SYNC_DATA.months[k]?.synced).sort();
-        if(syncedMonths.length === 0) {
-            document.getElementById('checkIn').disabled = true;
-            document.getElementById('checkOut').disabled = true;
-            return;
+        try {
+            const res = await fetch(API_URL + '/api/sync', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({month:selectedMonth})
+            });
+            const result = await res.json();
+            console.log('🔄 Sync result:', result);
+            
+            const status = document.getElementById('syncStatus');
+            if(result.success) {
+                status.innerHTML = '✅ ' + result.message;
+                status.style.background = '#e8f5e9';
+                status.style.color = '#2e7d32';
+                await loadSyncData();
+                initMonthGrid();
+            } else {
+                status.innerHTML = '❌ ' + (result.error || 'Sync failed');
+                status.style.background = '#ffebee';
+                status.style.color = '#c62828';
+            }
+            status.style.display = 'block';
+        } catch(e) {
+            console.error('❌ Sync error:', e);
+            const status = document.getElementById('syncStatus');
+            status.innerHTML = '❌ Cannot connect to Linux backend';
+            status.style.background = '#ffebee';
+            status.style.color = '#c62828';
+            status.style.display = 'block';
         }
         
-        document.getElementById('checkIn').disabled = false;
-        document.getElementById('checkOut').disabled = false;
-        
-        const d = SYNC_DATA.months[key];
-        if(d) {
-            const [y, m] = key.split('-').map(Number);
-            document.getElementById('checkIn').value = y+'-'+String(m).padStart(2,'0')+'-15';
-            document.getElementById('checkOut').value = y+'-'+String(m).padStart(2,'0')+'-19';
-        }
+        btn.disabled = false; btn.textContent = '🔄 Sync Selected Month';
     }
     
     function isWeekend(d){return d.getDay()===5||d.getDay()===6;}
