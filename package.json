@@ -1,0 +1,12 @@
+{
+  "name": "room-availability-tool",
+  "version": "2.0.0",
+  "description": "Room Availability & Quotation Tool - Vercel Version",
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  },
+  "keywords": ["room", "availability", "quotation", "vercel"],
+  "author": "Vincent",
+  "license": "MIT"
+}
