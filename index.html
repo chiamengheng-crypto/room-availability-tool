@@ -439,8 +439,23 @@
     }
     
     window.onload = async () => { 
-        await loadSyncData(); 
-        initMonthGrid(); 
+        console.log('🚀 App starting...');
+        console.log('📡 API URL:', API_URL);
+        
+        try {
+            await loadSyncData(); 
+            console.log('✅ Data loaded');
+        } catch(e) {
+            console.error('❌ Failed to load data:', e);
+        }
+        
+        try {
+            initMonthGrid(); 
+            console.log('✅ Month grid initialized');
+        } catch(e) {
+            console.error('❌ Failed to init month grid:', e);
+        }
+        
         document.getElementById('totalUnits').textContent = ALL_UNITS.length; 
     };
     </script>
