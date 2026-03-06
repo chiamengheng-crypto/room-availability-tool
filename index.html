@@ -168,11 +168,14 @@
     let SYNC_DATA = {}, selectedMonth = null;
     let selectedUnits = new Set();
     
+    // Linux Backend API URL
+    const API_URL = "http://34.82.120.96:8080";
+    
     async function loadSyncData() {
         try {
-            const response = await fetch('sync_data.json?t=' + Date.now());
+            const response = await fetch(API_URL + '/sync_data.json?t=' + Date.now());
             SYNC_DATA = await response.json();
-            console.log('✅ Loaded:', SYNC_DATA.months);
+            console.log('✅ Loaded from Linux server:', SYNC_DATA.months);
             return true;
         } catch { 
             SYNC_DATA = {months: {}}; 
@@ -199,16 +202,53 @@
             const key = m.y + '-' + String(m.m).padStart(2,'0');
             const d = SYNC_DATA.months[key];
             const synced = d && d.synced;
-            return `<div class="month-card ${synced?'synced':''}" onclick="selectMonth('${key}',this)">
-                <div class="month-name">${m.n}</div><div class="month-sync">
-                <span class="sync-badge ${synced?'synced':'not-synced'}">${synced?'✅ Synced':'❌ Not synced'}</span></div></div>`;
+            return `<div class="month-card ${synced?'synced':''}" data-key="${key}">
+                <div class="month-name">${m.n}</div>
+                <div class="month-sync">
+                    <span class="sync-badge ${synced?'synced':'not-synced'}">${synced?'✅ Synced':'❌ Not synced'}</span>
+                </div>
+                <button class="btn btn-primary" style="width:auto;padding:5px 10px;font-size:0.8em;margin-top:8px;" onclick="syncMonth('${key}', event)">🔄 Sync</button>
+            </div>`;
         }).join('');
         
         const first = Object.keys(SYNC_DATA.months).find(k => SYNC_DATA.months[k]?.synced);
         if(first) {
-            const card = grid.querySelector('[onclick*="'+first+'"]');
-            if(card) selectMonth(first, card);
+            const card = grid.querySelector('[data-key="'+first+'"]');
+            if(card) {
+                card.classList.add('selected');
+                selectedMonth = first;
+            }
         }
+    }
+    
+    async function syncMonth(monthKey, event) {
+        if(event) event.stopPropagation();
+        const btn = event.target;
+        btn.disabled = true;
+        btn.textContent = '⏳ Syncing...';
+        
+        try {
+            const response = await fetch(API_URL + '/api/sync', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({month: monthKey})
+            });
+            const result = await response.json();
+            
+            if(result.success) {
+                btn.textContent = '✅ Synced';
+                alert('✅ ' + result.message);
+                await loadSyncData();
+                initMonthGrid();
+            } else {
+                btn.textContent = '🔄 Sync';
+                alert('❌ ' + result.error);
+            }
+        } catch(e) {
+            btn.textContent = '🔄 Sync';
+            alert('❌ Error: ' + e.message);
+        }
+        btn.disabled = false;
     }
     
     function selectMonth(key, el) {
